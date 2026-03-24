@@ -1,44 +1,63 @@
-FROM python:3.11
+FROM nginx:alpine
 
-ENV HOME="/root" \
-    DEBIAN_FRONTEND=noninteractive
+# 环境变量配置
+ENV LISTEN_PORT=80 \
+    SERVER_NAME=localhost \
+    PROXY_PASS_URL="" \
+    PROXY_LOCATION=/api/ \
+    ROOT_PATH=/usr/share/nginx/html \
+    INDEX_FILE=index.html
 
-# 更新包列表并安装工具、nginx和pgloader，同时清理缓存以减小镜像体积
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    wget \
-    curl \
-    nginx \
-    pgloader && \
-    rm -rf /var/lib/apt/lists/*
+# 创建启动脚本，用于根据环境变量生成nginx配置
+RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# 生成nginx配置文件' >> /docker-entrypoint.sh && \
+    echo 'cat > /etc/nginx/conf.d/default.conf << EOF' >> /docker-entrypoint.sh && \
+    echo 'server {' >> /docker-entrypoint.sh && \
+    echo '    listen ${LISTEN_PORT};' >> /docker-entrypoint.sh && \
+    echo '    server_name ${SERVER_NAME};' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '    location / {' >> /docker-entrypoint.sh && \
+    echo '        root ${ROOT_PATH};' >> /docker-entrypoint.sh && \
+    echo '        index ${INDEX_FILE};' >> /docker-entrypoint.sh && \
+    echo '        try_files \$uri \$uri/ =404;' >> /docker-entrypoint.sh && \
+    echo '    }' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '    # 反向代理配置（如果设置了PROXY_PASS_URL）' >> /docker-entrypoint.sh && \
+    echo '    location ${PROXY_LOCATION} {' >> /docker-entrypoint.sh && \
+    echo '        proxy_pass \${PROXY_PASS_URL};' >> /docker-entrypoint.sh && \
+    echo '        proxy_set_header Host \$host;' >> /docker-entrypoint.sh && \
+    echo '        proxy_set_header X-Real-IP \$remote_addr;' >> /docker-entrypoint.sh && \
+    echo '        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;' >> /docker-entrypoint.sh && \
+    echo '        proxy_set_header X-Forwarded-Proto \$scheme;' >> /docker-entrypoint.sh && \
+    echo '    }' >> /docker-entrypoint.sh && \
+    echo '}' >> /docker-entrypoint.sh && \
+    echo 'EOF' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# 替换环境变量' >> /docker-entrypoint.sh && \
+    echo 'envsubst < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp' >> /docker-entrypoint.sh && \
+    echo 'mv /etc/nginx/conf.d/default.conf.tmp /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# 如果没有设置反向代理URL，则删除反向代理配置' >> /docker-entrypoint.sh && \
+    echo 'if [ -z "$PROXY_PASS_URL" ]; then' >> /docker-entrypoint.sh && \
+    echo '    sed -i "/# 反向代理配置/,/}/d" /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo 'echo "Nginx配置:"' >> /docker-entrypoint.sh && \
+    echo 'cat /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo 'exec "$@"' >> /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh
 
-# 创建nginx默认站点目录
-RUN mkdir -p /app/www
+# 创建默认首页
+RUN echo '<!DOCTYPE html>' > /usr/share/nginx/html/index.html && \
+    echo '<html><head><title>Welcome to nginx!</title></head>' >> /usr/share/nginx/html/index.html && \
+    echo '<body><h1>Welcome to nginx!</h1>' >> /usr/share/nginx/html/index.html && \
+    echo '<p>If you see this page, the nginx web server is successfully installed and working.</p></body></html>' >> /usr/share/nginx/html/index.html
 
-# 配置nginx默认站点
-RUN echo 'server {' > /etc/nginx/sites-available/default && \
-    echo '    listen 80 default_server;' >> /etc/nginx/sites-available/default && \
-    echo '    listen [::]:80 default_server;' >> /etc/nginx/sites-available/default && \
-    echo '    root /app/www;' >> /etc/nginx/sites-available/default && \
-    echo '    index index.html index.htm index.nginx-debian.html;' >> /etc/nginx/sites-available/default && \
-    echo '    server_name _;' >> /etc/nginx/sites-available/default && \
-    echo '    location /openapi/ {' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_pass http://capcut-mate:30000/openapi/;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header Host $host;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/sites-available/default && \
-    echo '        proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/sites-available/default && \
-    echo '    }' >> /etc/nginx/sites-available/default && \
-    echo '    location / {' >> /etc/nginx/sites-available/default && \
-    echo '        try_files $uri $uri/ =404;' >> /etc/nginx/sites-available/default && \
-    echo '    }' >> /etc/nginx/sites-available/default && \
-    echo '}' >> /etc/nginx/sites-available/default
-
-# 创建一个默认的index.html文件
-RUN echo '<html><head><title>Welcome to nginx!</title></head><body><h1>Welcome to nginx!</h1><p>If you see this page, the nginx web server is successfully installed and working.</p></body></html>' > /app/www/index.html
-
-# 暴露80端口
+# 暴露端口（使用环境变量，但EXPOSE指令只作文档说明）
 EXPOSE 80
 
-# 启动nginx服务
+# 设置入口脚本
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
