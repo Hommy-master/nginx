@@ -1,5 +1,6 @@
 services:
   nginx:
+    image: gogoshine/nginx:latest
     ports:
       - "80:80"
     environment:
