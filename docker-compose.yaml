@@ -1,16 +1,16 @@
 services:
   nginx:
-    image: gogoshine/nginx:latest
-    platform: linux/amd64
+    build: .
     ports:
-      - "80:80"  # 将主机的 80 端口映射到容器内部的 80 端口
+      - "80:80"
+    environment:
+      - LISTEN_PORT=80
+      - SERVER_NAME=localhost
+      - PROXY_PASS_URL_1=http://127.0.0.1:30000/openapi/capcut-mate/
+      - PROXY_LOCATION_1=/openapi/capcut-mate/
+      - PROXY_PASS_URL_2=http://127.0.0.1:30001/openapi/autosubrt/
+      - PROXY_LOCATION_2=/openapi/autosubrt/
     volumes:
-      - ./share:/app/www/share
-      - ./workspace:/root/workspace
-    mem_limit: 2G     # 内存限制
-    memswap_limit: 2G # 总内存（物理内存 + Swap）限制
-    cpus: '2.0'       # CPU使用率限制为150%，即容器最多可以使用1.5个完整的CPU核心
-    oom_score_adj: -500  # 调整 OOM 杀手优先级
-    restart: unless-stopped  # 除非手动停止，否则总是重启容器
-    container_name: nginx # 这里指容器名称，非必需，不指定时，名称为：<项目名称>-<服务名称>-<序号>
-    #entrypoint: ["/bin/sh", "-c", "sleep 10000"]
+      - ./html:/usr/share/nginx/html
+    restart: unless-stopped
+    container_name: nginx
