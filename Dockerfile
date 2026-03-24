@@ -29,7 +29,6 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo 'NGINXCONF' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '# 处理多个反向代理配置' >> /docker-entrypoint.sh && \
-    echo 'PROXY_CONFIG=""' >> /docker-entrypoint.sh && \
     echo 'i=1' >> /docker-entrypoint.sh && \
     echo 'while true; do' >> /docker-entrypoint.sh && \
     echo '    eval PROXY_URL=\$PROXY_PASS_URL_$i' >> /docker-entrypoint.sh && \
@@ -41,23 +40,29 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '    LOC="${PROXY_LOC:-/api/}"' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
-    echo '    PROXY_CONFIG="${PROXY_CONFIG}' >> /docker-entrypoint.sh && \
+    echo '    # 追加反向代理配置到临时文件' >> /docker-entrypoint.sh && \
+    echo '    cat >> /tmp/proxy.conf << PROXYBLOCK' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
-    echo '    location ${LOC} {' >> /docker-entrypoint.sh && \
-    echo '        proxy_pass ${PROXY_URL};' >> /docker-entrypoint.sh && \
+    echo '    location __LOC__ {' >> /docker-entrypoint.sh && \
+    echo '        proxy_pass __URL__;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header Host \$host;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Real-IP \$remote_addr;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Forwarded-Proto \$scheme;' >> /docker-entrypoint.sh && \
-    echo '    }"' >> /docker-entrypoint.sh && \
+    echo '    }' >> /docker-entrypoint.sh && \
+    echo 'PROXYBLOCK' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '    # 替换占位符' >> /docker-entrypoint.sh && \
+    echo '    sed -i "s|__LOC__|$LOC|g" /tmp/proxy.conf' >> /docker-entrypoint.sh && \
+    echo '    sed -i "s|__URL__|$PROXY_URL|g" /tmp/proxy.conf' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '    i=$((i + 1))' >> /docker-entrypoint.sh && \
     echo 'done' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '# 将反向代理配置插入到配置文件中' >> /docker-entrypoint.sh && \
-    echo 'if [ -n "$PROXY_CONFIG" ]; then' >> /docker-entrypoint.sh && \
-    echo '    printf "%s\n" "$PROXY_CONFIG" > /tmp/proxy.conf' >> /docker-entrypoint.sh && \
+    echo 'if [ -f /tmp/proxy.conf ]; then' >> /docker-entrypoint.sh && \
     echo '    sed -i "/# DYNAMIC_PROXY_LOCATIONS/r /tmp/proxy.conf" /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
+    echo '    rm -f /tmp/proxy.conf' >> /docker-entrypoint.sh && \
     echo 'fi' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '# 删除占位符' >> /docker-entrypoint.sh && \
