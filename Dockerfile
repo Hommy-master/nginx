@@ -68,8 +68,8 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo '# 删除占位符' >> /docker-entrypoint.sh && \
     echo 'sed -i "/# DYNAMIC_PROXY_LOCATIONS/d" /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
-    echo '# 替换环境变量' >> /docker-entrypoint.sh && \
-    echo 'envsubst < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp' >> /docker-entrypoint.sh && \
+    echo '# 替换环境变量（只替换指定的变量，保留nginx变量如$host等）' >> /docker-entrypoint.sh && \
+    echo 'envsubst '\''${LISTEN_PORT},${SERVER_NAME},${ROOT_PATH},${INDEX_FILE}'\'' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp' >> /docker-entrypoint.sh && \
     echo 'mv /etc/nginx/conf.d/default.conf.tmp /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo 'echo "Nginx配置:"' >> /docker-entrypoint.sh && \
