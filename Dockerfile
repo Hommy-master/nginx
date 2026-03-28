@@ -7,7 +7,8 @@ RUN apk add --no-cache gettext
 ENV LISTEN_PORT=80 \
     SERVER_NAME=localhost \
     ROOT_PATH=/usr/share/nginx/html \
-    INDEX_FILE=index.html
+    INDEX_FILE=index.html \
+    PROXY_TIMEOUT=600
 
 # 创建启动脚本，用于根据环境变量生成nginx配置
 RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
@@ -49,6 +50,9 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Real-IP \$remote_addr;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;' >> /docker-entrypoint.sh && \
     echo '        proxy_set_header X-Forwarded-Proto \$scheme;' >> /docker-entrypoint.sh && \
+    echo '        proxy_connect_timeout ${PROXY_TIMEOUT}s;' >> /docker-entrypoint.sh && \
+    echo '        proxy_send_timeout ${PROXY_TIMEOUT}s;' >> /docker-entrypoint.sh && \
+    echo '        proxy_read_timeout ${PROXY_TIMEOUT}s;' >> /docker-entrypoint.sh && \
     echo '    }' >> /docker-entrypoint.sh && \
     echo 'PROXYBLOCK' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
@@ -69,7 +73,7 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo 'sed -i "/# DYNAMIC_PROXY_LOCATIONS/d" /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo '# 替换环境变量（只替换指定的变量，保留nginx变量如$host等）' >> /docker-entrypoint.sh && \
-    echo 'envsubst '\''${LISTEN_PORT},${SERVER_NAME},${ROOT_PATH},${INDEX_FILE}'\'' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp' >> /docker-entrypoint.sh && \
+    echo 'envsubst '\''${LISTEN_PORT},${SERVER_NAME},${ROOT_PATH},${INDEX_FILE},${PROXY_TIMEOUT}'\'' < /etc/nginx/conf.d/default.conf > /etc/nginx/conf.d/default.conf.tmp' >> /docker-entrypoint.sh && \
     echo 'mv /etc/nginx/conf.d/default.conf.tmp /etc/nginx/conf.d/default.conf' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
     echo 'echo "Nginx配置:"' >> /docker-entrypoint.sh && \
